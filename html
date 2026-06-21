@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>照片和视频存储</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      background: #eef3f8;
+      color: #222;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: radial-gradient(circle at top, #d9e8ff 0%, #eef3f8 45%, #f5f7fa 100%); }
+    header { background: #3867d6; color: white; padding: 22px 16px; text-align: center; }
+    header h1 { margin: 0 0 8px; font-size: 1.8rem; letter-spacing: 0.02em; }
+    header p { margin: 0; font-size: 0.98rem; opacity: 0.92; }
+    main { padding: 16px; max-width: 960px; margin: 0 auto; }
+    .controls { display: grid; gap: 12px; margin-bottom: 18px; }
+    .file-box { display: grid; gap: 10px; }
+    .file-box label { display: block; border: 1px dashed #a3b8dc; border-radius: 14px; padding: 14px 16px; background: rgba(255,255,255,0.95); transition: border-color 0.2s ease, background 0.2s ease; }
+    .file-box label:hover { border-color: #3867d6; background: rgba(255,255,255,1); }
+    .file-box input[type=file] { width: 100%; font-size: 0.95rem; padding: 8px 0; cursor: pointer; border: none; outline: none; background: transparent; }
+    button { border: none; border-radius: 12px; padding: 14px 18px; font-size: 1rem; font-weight: 600; color: white; background: #3867d6; cursor: pointer; box-shadow: 0 10px 18px rgba(56,103,214,0.18); transition: transform 0.15s ease, background 0.2s ease; }
+    button:hover { transform: translateY(-1px); background: #2f57bf; }
+    button:active { transform: translateY(0); }
+    .note { font-size: 0.95rem; color: #475569; line-height: 1.6; }
+    .status { font-size: 0.95rem; color: #334155; }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .card { background: white; border: 1px solid rgba(148,163,184,0.35); border-radius: 18px; overflow: hidden; box-shadow: 0 18px 40px rgba(15,23,42,0.06); }
+    .card video, .card img { width: 100%; height: auto; display: block; }
+    .card .info { padding: 14px; font-size: 0.95rem; color: #475569; display: grid; gap: 8px; }
+    .card .info div { word-break: break-all; }
+    .card .info button { width: 100%; background: #ef4444; font-size: 0.95rem; padding: 10px 12px; border-radius: 12px; box-shadow: 0 8px 16px rgba(239,68,68,0.18); }
+    .card .info button:hover { background: #dc2626; }
+    .description { padding: 12px 16px; background: rgba(255,255,255,0.92); border-radius: 16px; border: 1px solid rgba(148,163,184,0.3); }
+    @media (min-width: 640px) {
+      .controls { grid-template-columns: 1.5fr 0.8fr; align-items: center; }
+      .file-box { grid-column: 1 / -1; }
+      .description { max-width: 100%; }
+    }
+    @media (max-width: 520px) {
+      header { padding: 18px 12px; }
+      header h1 { font-size: 1.5rem; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>照片和视频存储</h1>
+    <p>使用浏览器本地数据库保存大量文件，无需服务器。</p>
+  </header>
+  <main>
+    <div class="controls">
+      <div class="file-box">
+        <label for="fileInput">
+          选择照片/视频
+          <div class="note">支持多选，推荐在手机浏览器中直接拍照或录制。</div>
+        </label>
+        <input id="fileInput" type="file" accept="image/*,video/*" multiple capture="environment">
+      </div>
+      <button id="clearAllBtn">清空全部</button>
+      <div class="status" id="status"></div>
+    </div>
+    <div class="description">
+      你可以保存照片和视频到浏览器本地存储。刷新页面后仍可查看已保存内容。删除操作不可恢复，请谨慎使用。
+    </div>
+    <section class="gallery" id="gallery"></section>
+  </main>
+
+  <script>
+    const dbName = 'mediaStorageDB';
+    const storeName = 'mediaFiles';
+    const statusEl = document.getElementById('status');
+    const galleryEl = document.getElementById('gallery');
+    const fileInput = document.getElementById('fileInput');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    let db;
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.style.color = isError ? '#c0392b' : '#333';
+    }
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onupgradeneeded = () => {
+          const database = request.result;
+          if (!database.objectStoreNames.contains(storeName)) {
+            const store = database.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
+            store.createIndex('type', 'type', { unique: false });
+            store.createIndex('created', 'created', { unique: false });
+          }
+        };
+        request.onsuccess = () => {
+          db = request.result;
+          resolve(db);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function saveFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const transaction = db.transaction(storeName, 'readwrite');
+          const store = transaction.objectStore(storeName);
+          const item = {
+            name: file.name,
+            type: file.type,
+            created: Date.now(),
+            data: reader.result
+          };
+          const request = store.add(item);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function loadAllFiles() {
+      galleryEl.innerHTML = '';
+      const transaction = db.transaction(storeName, 'readonly');
+      const store = transaction.objectStore(storeName);
+      const request = store.openCursor();
+      const items = [];
+      request.onsuccess = event => {
+        const cursor = event.target.result;
+        if (cursor) {
+          items.push(cursor.value);
+          cursor.continue();
+        } else {
+          if (items.length === 0) {
+            setStatus('当前没有保存的文件。');
+            return;
+          }
+          items.sort((a, b) => b.created - a.created);
+          items.forEach(renderCard);
+          setStatus(`已保存 ${items.length} 个文件。`);
+        }
+      };
+      request.onerror = () => setStatus('读取文件失败。', true);
+    }
+
+    function renderCard(item) {
+      const url = URL.createObjectURL(new Blob([item.data], { type: item.type }));
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      if (item.type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = item.name;
+        card.appendChild(img);
+      } else if (item.type.startsWith('video/')) {
+        const video = document.createElement('video');
+        video.src = url;
+        video.controls = true;
+        video.loop = false;
+        card.appendChild(video);
+      } else {
+        const info = document.createElement('div');
+        info.textContent = '无法显示此类型文件。';
+        card.appendChild(info);
+      }
+
+      const info = document.createElement('div');
+      info.className = 'info';
+      const nameSpan = document.createElement('div');
+      nameSpan.textContent = item.name;
+      const dateSpan = document.createElement('div');
+      dateSpan.textContent = new Date(item.created).toLocaleString();
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = '删除';
+      deleteBtn.addEventListener('click', () => deleteFile(item.id));
+      info.appendChild(nameSpan);
+      info.appendChild(dateSpan);
+      info.appendChild(deleteBtn);
+      card.appendChild(info);
+      galleryEl.appendChild(card);
+    }
+
+    function deleteFile(id) {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.delete(id);
+      request.onsuccess = () => loadAllFiles();
+      request.onerror = () => setStatus('删除失败。', true);
+    }
+
+    function clearAllFiles() {
+      if (!confirm('确定要删除所有保存的照片和视频吗？')) return;
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.clear();
+      request.onsuccess = () => loadAllFiles();
+      request.onerror = () => setStatus('清空失败。', true);
+    }
+
+    fileInput.addEventListener('change', async () => {
+      const files = Array.from(fileInput.files);
+      if (files.length === 0) return;
+      setStatus('正在保存文件，请稍候…');
+      try {
+        for (const file of files) {
+          await saveFile(file);
+        }
+        setStatus('保存成功。');
+        loadAllFiles();
+      } catch (error) {
+        setStatus('保存文件失败：' + error.message, true);
+      } finally {
+        fileInput.value = '';
+      }
+    });
+
+    clearAllBtn.addEventListener('click', clearAllFiles);
+
+    openDatabase()
+      .then(loadAllFiles)
+      .catch(error => setStatus('无法打开数据库：' + error.message, true));
+  </script>
+</body>
+</html>
