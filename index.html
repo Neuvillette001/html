@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>实用主页</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">个人实用首页</p>
+        <h1>快速开始面板</h1>
+        <p class="subtitle">集成搜索、时钟、代办、便签和常用链接，一页即可使用。</p>
+      </div>
+      <div class="clock" id="clock">--:--:--</div>
+    </header>
+
+    <main>
+      <section class="card search-card">
+        <h2>快捷搜索</h2>
+        <form id="searchForm" class="search-form">
+          <input id="searchInput" type="search" placeholder="输入搜索内容，按回车" aria-label="搜索内容" />
+          <select id="searchEngine" aria-label="选择搜索引擎">
+            <option value="https://www.baidu.com/s?wd=">百度</option>
+            <option value="https://www.google.com/search?q=">Google</option>
+            <option value="https://cn.bing.com/search?q=">必应</option>
+          </select>
+          <button type="submit">搜索</button>
+        </form>
+      </section>
+
+      <section class="grid">
+        <div class="card widget-card">
+          <h2>常用链接</h2>
+          <p>填写名称和网址，保存后即可快速访问自定义常用站点。</p>
+          <div class="quick-link-form">
+            <input id="linkName" type="text" placeholder="链接名称，例如：知乎" aria-label="链接名称" />
+            <input id="linkUrl" type="url" placeholder="https://example.com" aria-label="链接网址" />
+            <button id="addLink" type="button">添加链接</button>
+          </div>
+          <ul id="quickLinksList" class="quick-links"></ul>
+        </div>
+
+        <div class="card widget-card">
+          <h2>智能时钟</h2>
+          <p id="clockDate"></p>
+          <div class="clock-large" id="clockLarge">--:--:--</div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card todo-card">
+          <div class="card-header">
+            <h2>待办清单</h2>
+            <button id="clearTodo" type="button">清空</button>
+          </div>
+          <div class="todo-input-row">
+            <input id="todoInput" type="text" placeholder="添加任务后按添加" aria-label="添加新任务" />
+            <button id="addTodo" type="button">添加</button>
+          </div>
+          <ul id="todoList" class="todo-list" aria-live="polite"></ul>
+        </div>
+
+        <div class="card note-card">
+          <div class="card-header">
+            <h2>页面便签</h2>
+            <button id="saveNote" type="button">保存</button>
+          </div>
+          <textarea id="noteText" placeholder="写下今天的重要事项或想法..." aria-label="便签内容"></textarea>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>本页支持本地保存，刷新后保留代办与便签内容。</p>
+    </footer>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
